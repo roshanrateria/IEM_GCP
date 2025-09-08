@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IEM Google Cloud Workshop — Celebration</title>
+  <style>
+    :root{
+      --bg1:#0f172a; /* slate-900 */
+      --bg2:#063d7c; /* deep blue */
+      --card:#0b1220;
+      --accent:#7dd3fc;
+      --glass: rgba(255,255,255,0.04);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+    body{
+      background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      color:#e6eef8;
+      display:flex;align-items:center;justify-content:center;padding:36px;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+    .card{
+      width:min(980px,96%);
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:18px; padding:40px; box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+      display:grid;gap:18px;align-items:center;grid-template-columns:1fr auto;
+    }
+    .title{
+      font-size:clamp(20px,3.5vw,34px); margin:0; letter-spacing:-0.02em;
+    }
+    .subtitle{margin:0;color:rgba(230,238,248,0.78);font-size:14px}
+    .controls{display:flex;gap:12px;align-items:center}
+    .btn{
+      background:linear-gradient(180deg,var(--accent),#38bdf8);
+      border:none;padding:10px 16px;border-radius:12px;font-weight:600;cursor:pointer;color:#04253a;
+      box-shadow:0 6px 18px rgba(58,141,255,0.12), inset 0 -2px 0 rgba(255,255,255,0.08);
+    }
+    .btn:active{transform:translateY(1px)}
+    .small{font-size:13px;opacity:0.95}
+    .center-area{grid-column:1 / -1;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;padding-top:6px}
+    .hero{
+      font-size:clamp(40px,7vw,84px);font-weight:800;margin:0;line-height:0.95;text-align:center;
+      background:linear-gradient(90deg,#fef3c7,#7dd3fc,#c7baff); -webkit-background-clip:text;background-clip:text;color:transparent;
+    }
+    .desc{max-width:720px;text-align:center;color:rgba(230,238,248,0.8)}
+
+    /* Modal popup */
+    .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:60;visibility:hidden;opacity:0;transition:opacity .28s ease,visibility .28s}
+    .overlay.show{visibility:visible;opacity:1}
+    .modal{
+      background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));backdrop-filter: blur(6px);
+      border-radius:14px;padding:26px 26px 18px;min-width:320px;max-width:520px;box-shadow:0 12px 40px rgba(2,8,23,0.6);text-align:center;
+    }
+    .modal h2{margin:6px 0 0;font-size:28px}
+    .modal p{margin:8px 0 14px;color:rgba(230,238,248,0.85)}
+    .close{position:absolute;right:18px;top:18px;border-radius:10px;border:none;padding:8px;cursor:pointer;background:transparent;color:rgba(230,238,248,0.6)}
+
+    /* confetti canvas sits above everything but below overlay content */
+    canvas.confetti{
+      position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:55;mix-blend-mode:screen;
+    }
+
+    footer{grid-column:1 / -1;text-align:center;color:rgba(230,238,248,0.6);font-size:13px;margin-top:6px}
+
+    @media (max-width:640px){.card{padding:20px;grid-template-columns:1fr}.controls{justify-content:center}}
+  </style>
+</head>
+<body>
+  <div class="card" role="main">
+    <div>
+      <h1 class="title">IEM Google Cloud Workshop</h1>
+      <p class="subtitle">Hands-on session • Cloud fundamentals • Labs & challenges</p>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="celebrateBtn" aria-haspopup="dialog">Celebrate</button>
+    </div>
+
+    <div class="center-area">
+      <h2 class="hero">Get ready to level up ☁️</h2>
+      <p class="desc">Welcome to the IEM Google Cloud Workshop. Click "Celebrate" or wait a bit — a confetti popup will appear to celebrate your progress.</p>
+      <footer>Tip: you can trigger the celebration multiple times.</footer>
+    </div>
+  </div>
+
+  <!-- Confetti canvas and modal overlay -->
+  <canvas class="confetti" id="confettiCanvas" aria-hidden="true"></canvas>
+
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal" role="document">
+      <button class="close" id="closeBtn" aria-label="Close">✕</button>
+      <h2 id="modalTitle">You did it 🎉</h2>
+      <p>Congrats — that was awesome. Keep going!</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">
+        <button class="btn" id="againBtn">Celebrate again</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // Simple confetti engine (no external libs). Lightweight and self-contained.
+  (() => {
+    const canvas = document.getElementById('confettiCanvas');
+    const ctx = canvas.getContext('2d');
+    let W = 0, H = 0, particles = [], rafId = null;
+
+    function resize(){
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      W = canvas.clientWidth = window.innerWidth;
+      H = canvas.clientHeight = window.innerHeight;
+      canvas.width = Math.floor(W * dpr);
+      canvas.height = Math.floor(H * dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const COLORS = [ '#ff577f', '#ffd166', '#8bd3dd', '#7bf1a8', '#b696ff', '#ffd9b6' ];
+
+    function random(min, max){ return Math.random() * (max - min) + min; }
+
+    function createParticle(x, y){
+      const size = random(6, 12);
+      const tilt = random(-Math.PI, Math.PI);
+      return {
+        x, y,
+        vx: random(-4,4),
+        vy: random(-10, -4),
+        size,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        rotation: random(0, Math.PI*2),
+        rotationSpeed: random(-0.2,0.2),
+        ttl: random(2000, 4200),
+        age: 0,
+        tilt
+      };
+    }
+
+    function spawnBurst(cx, cy, count=40){
+      for(let i=0;i<count;i++) particles.push(createParticle(cx + random(-20,20), cy + random(-20,20)));
+      if(!rafId) rafId = requestAnimationFrame(step);
+    }
+
+    function step(ts){
+      ctx.clearRect(0,0,W,H);
+      const now = Date.now();
+      for(let i = particles.length-1; i >= 0; i--){
+        const p = particles[i];
+        const dt = 16; // approximate
+        p.age += dt;
+        p.vy += 0.15; // gravity
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rotation += p.rotationSpeed;
+        p.tilt += 0.06;
+
+        // draw as rotated rectangle
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.beginPath();
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size * 0.6);
+        ctx.restore();
+
+        // remove if offscreen or too old
+        if(p.y - p.size > H + 40 || p.age > p.ttl) particles.splice(i,1);
+      }
+
+      if(particles.length > 0) rafId = requestAnimationFrame(step); else { cancelAnimationFrame(rafId); rafId = null; }
+    }
+
+    // Modal control and wiring
+    const overlay = document.getElementById('overlay');
+    const celebrateBtn = document.getElementById('celebrateBtn');
+    const closeBtn = document.getElementById('closeBtn');
+    const againBtn = document.getElementById('againBtn');
+
+    function showPopup(auto=false){
+      overlay.classList.add('show');
+      // spawn multiple bursts for a nice effect
+      const cx = window.innerWidth/2; const cy = window.innerHeight/2 - 30;
+      spawnBurst(cx, cy, 48);
+      setTimeout(()=> spawnBurst(cx - 120, cy - 40, 28), 120);
+      setTimeout(()=> spawnBurst(cx + 120, cy - 40, 28), 220);
+
+      // auto stop: clear after 5s
+      setTimeout(()=>{
+        // leave overlay visible until user closes; particles will naturally fall away
+      }, 5000);
+
+      // If called manually by user, focus close button for accessibility
+      if(!auto) closeBtn.focus();
+    }
+
+    function hidePopup(){ overlay.classList.remove('show'); }
+
+    celebrateBtn.addEventListener('click', () => showPopup(false));
+    againBtn.addEventListener('click', () => showPopup(false));
+    closeBtn.addEventListener('click', hidePopup);
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) hidePopup(); });
+
+    // Show automatically after a short delay (friendly)
+    document.addEventListener('DOMContentLoaded', ()=>{
+      setTimeout(()=> showPopup(true), 900);
+    });
+
+  })();
+  </script>
+</body>
+</html>
